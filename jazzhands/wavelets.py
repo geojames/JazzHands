@@ -73,7 +73,7 @@ class WaveletTransformer:
         elif nus is not None:
             self._nus = np.asarray(nus)
             self._omegas = 2.0 * np.pi * np.asarray(nus)
-            self._scales = 1.0 / np.asarray(scales)
+            self._scales = 1.0 / np.asarray(nus)
         elif scales is not None:
             self._scales = np.asarray(scales)
             self._omegas = 2.0 * np.pi / np.asarray(scales)
@@ -485,7 +485,7 @@ class WaveletTransformer:
         if self._omegas is None and self._nus is None and self._scales is None:
             raise ValueError("Please set omegas or nus or scales")
 
-        from tqdm.autonotebook import tqdm
+        from tqdm import tqdm
 
         if parallel:
             import multiprocessing as mp
@@ -517,7 +517,7 @@ class WaveletTransformer:
 
         return wwz, wwa
 
-    def _omegas_taus_from_min_max_nu(self, nu_min, nu_max, tau_min, tau_max, resolution_factor=3, c=0.0125):
+    def _omegas_taus_from_min_max_nu(self, nu_min, nu_max, tau_min, tau_max, fix_omega ,resolution_factor=3, c=0.0125):
         """
         Given a user-specified minimum and maximum frequency, finds the frequency
         grid that gives approximately `resolution_factor` elements across a peak in
@@ -563,9 +563,12 @@ class WaveletTransformer:
         log_omega_min = np.log2(2 * np.pi * nu_min)
         log_omega_max = np.log2(2 * np.pi * nu_max)
 
-        delta_log_omega = np.log2(1.0 + (np.sqrt(2.0 * c) / resolution_factor))
-        n_omega = int((log_omega_max - log_omega_min) / delta_log_omega) + 1
-        omegas = np.logspace(log_omega_min, log_omega_max, n_omega, base=2)
+        if fix_omega == True:
+            omegas = self._omegas
+        else:
+            delta_log_omega = np.log2(1.0 + (np.sqrt(2.0 * c) / resolution_factor))
+            n_omega = int((log_omega_max - log_omega_min) / delta_log_omega) + 1
+            omegas = np.logspace(log_omega_min, log_omega_max, n_omega, base=2)
 
         dt_max = 1.0 / (2 * np.pi * nu_max * np.sqrt(2.0 * c))
         n_tau = int(resolution_factor * (tau_max - tau_min) / dt_max) + 1
@@ -573,7 +576,7 @@ class WaveletTransformer:
 
         return omegas, taus
 
-    def auto_compute(self, nu_min, nu_max, tau_min=None, tau_max=None, resolution_factor=3, exclude=True, parallel=False, n_processes=False):
+    def auto_compute(self, nu_min, nu_max, tau_min=None, tau_max=None, resolution_factor=3, fix_omega = False, exclude=True, parallel=False, n_processes=False):
         """
         Calculate the Weighted Wavelet Transform of the object in a user-
         specified frequency window. `auto_compute` then figures out the
@@ -631,7 +634,10 @@ class WaveletTransformer:
         if tau_max is None:
             tau_max = self._time.max()
 
-        self.omegas, self.taus = self._omegas_taus_from_min_max_nu(nu_min, nu_max, tau_min, tau_max, resolution_factor=resolution_factor)
+        self.omegas, self.taus = self._omegas_taus_from_min_max_nu(nu_min, nu_max, 
+                                                                   tau_min, tau_max,
+                                                                   fix_omega,
+                                                                   resolution_factor=resolution_factor)
 
         wwz, wwa = self.compute_wavelet(exclude=exclude,
                                         parallel=parallel,
